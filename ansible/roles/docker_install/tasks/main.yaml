@@ -1,0 +1,12 @@
+---
+- name: (Debian) Load tasks
+  ansible.builtin.import_tasks: debian.yaml
+  when: ansible_facts['os_family'] == "Debian"
+
+- name: Add "ansible_user" to docker group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: docker
+    append: true
+    state: present
+  when: ansible_user is defined
