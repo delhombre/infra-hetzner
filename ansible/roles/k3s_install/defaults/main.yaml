@@ -1,0 +1,12 @@
+---
+# Options passed to the k3s installation script
+k3s_install_options: ""
+
+# Options for k3s server execution
+# Examples:
+#   "--disable traefik" to disable built-in Traefik
+#   "--tls-san my-domain.com" to add a SAN to the certificate
+k3s_install_exec_options: "server"
+
+# Expose kubeconfig with public IP (for remote access)
+k3s_install_expose_kubeconfig: false

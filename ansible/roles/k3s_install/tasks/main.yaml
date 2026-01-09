@@ -1,0 +1,62 @@
+---
+- name: Check if k3s is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/k3s
+  register: k3s_install_binary
+
+- name: Download k3s install script
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /tmp/k3s-install.sh
+    mode: "0755"
+  when: not k3s_install_binary.stat.exists
+
+- name: Install k3s
+  ansible.builtin.command:
+    cmd: /tmp/k3s-install.sh {{ k3s_install_options }}
+  environment:
+    INSTALL_K3S_EXEC: "{{ k3s_install_exec_options }}"
+  when: not k3s_install_binary.stat.exists
+  changed_when: true
+
+- name: Wait for k3s to be ready
+  ansible.builtin.command:
+    cmd: k3s kubectl get nodes
+  register: k3s_install_nodes
+  until: k3s_install_nodes.rc == 0
+  retries: 30
+  delay: 5
+  changed_when: false
+  when: not k3s_install_binary.stat.exists
+
+- name: Create .kube directory for user
+  ansible.builtin.file:
+    path: "/home/{{ ansible_user }}/.kube"
+    state: directory
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Copy kubeconfig for user
+  ansible.builtin.copy:
+    src: /etc/rancher/k3s/k3s.yaml
+    dest: "/home/{{ ansible_user }}/.kube/config"
+    remote_src: true
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+    mode: "0600"
+
+- name: Update kubeconfig server address
+  ansible.builtin.replace:
+    path: "/home/{{ ansible_user }}/.kube/config"
+    regexp: "https://127.0.0.1:6443"
+    replace: "https://{{ ansible_host }}:6443"
+  when: k3s_install_expose_kubeconfig | default(false)
+
+- name: Add kubectl alias to fish config
+  ansible.builtin.lineinfile:
+    path: "/home/{{ ansible_user }}/.config/fish/config.fish"
+    line: "alias k='kubectl'"
+    state: present
+    create: false
+  failed_when: false
