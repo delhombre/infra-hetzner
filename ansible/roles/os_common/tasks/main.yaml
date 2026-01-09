@@ -10,6 +10,21 @@
     state: present
   when: locale is defined
 
+- name: Tools | Check current locale
+  ansible.builtin.command:
+    cmd: localectl status
+  register: os_common_current_locale
+  changed_when: false
+  when: locale is defined
+
+- name: Tools | Set default locale
+  ansible.builtin.command:
+    cmd: localectl set-locale LANG={{ locale }}
+  when:
+    - locale is defined
+    - locale not in os_common_current_locale.stdout
+  changed_when: true
+
 - name: (Debian) Load tasks
   ansible.builtin.import_tasks: debian.yaml
   when: ansible_facts['os_family'] == "Debian"

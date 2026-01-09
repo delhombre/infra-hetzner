@@ -1,0 +1,2 @@
+os_common_ssh_service: ssh.service
+os_common_file_to_source: "/home/{{ ansible_user }}/.bashrc"

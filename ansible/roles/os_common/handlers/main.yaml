@@ -1,0 +1,12 @@
+---
+- name: Restart SSH
+  ansible.builtin.service:
+    name: "{{ os_common_ssh_service }}"
+    state: restarted
+    enabled: true
+
+- name: Source file
+  ansible.builtin.command:
+    cmd: "source {{ os_common_file_to_source }}"
+    creates: "{{ os_common_file_to_source }}"
+  when: os_common_file_to_source is defined
