@@ -6,7 +6,11 @@ k3s_install_options: ""
 # Examples:
 #   "--disable traefik" to disable built-in Traefik
 #   "--tls-san my-domain.com" to add a SAN to the certificate
-k3s_install_exec_options: "server"
+k3s_install_exec_options: "server --write-kubeconfig-mode=644"
 
 # Expose kubeconfig with public IP (for remote access)
 k3s_install_expose_kubeconfig: false
+
+# Force reinstall k3s (uninstall first, then reinstall)
+# Set to true to apply new exec options on existing installation
+k3s_install_force_reinstall: false
