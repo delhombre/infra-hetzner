@@ -24,3 +24,7 @@
     - name: "Cert manager install and config"
       ansible.builtin.include_role:
         name: cert_manager
+
+    - name: "Rancher dashboard"
+      ansible.builtin.include_role:
+        name: rancher
