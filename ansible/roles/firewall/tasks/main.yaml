@@ -1,0 +1,21 @@
+---
+- name: Install Firewalld
+  ansible.builtin.package:
+    name: firewalld
+    state: present
+    update_cache: true
+
+- name: Start and Enable Firewalld
+  ansible.builtin.systemd:
+    name: firewalld
+    state: started
+    enabled: true
+
+- name: Enable HTTP and HTTPS Services permanently and immediately if possible
+  ansible.posix.firewalld:
+    service: "{{ item }}"
+    state: enabled
+    permanent: true
+    immediate: true
+    offline: true
+  loop: "{{ firewall_services }}"
