@@ -20,3 +20,7 @@
     - name: "K3s install"
       ansible.builtin.include_role:
         name: k3s_install
+
+    - name: "Cert manager install and config"
+      ansible.builtin.include_role:
+        name: cert_manager
