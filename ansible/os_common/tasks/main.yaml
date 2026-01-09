@@ -1,0 +1,123 @@
+---
+- name: Tools | Timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+  when: timezone is defined
+
+- name: Tools | Server locale
+  community.general.locale_gen:
+    name: "{{ locale }}"
+    state: present
+  when: locale is defined
+
+- name: (Debian) Load tasks
+  ansible.builtin.import_tasks: debian.yaml
+  when: ansible_facts['os_family'] == "Debian"
+- name: SSH | Add group for ssh connections
+  ansible.builtin.group:
+    name: "{{ os_common_ssh_group }}"
+    state: present
+  notify: Restart SSH
+
+- name: SSH | Add server user in new group
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    groups: "{{ os_common_ssh_group }}"
+    append: true
+    state: present
+  notify: Restart SSH
+
+- name: SSH | Modify 'sshd_config'
+  ansible.builtin.lineinfile:
+    path: "/etc/ssh/sshd_config"
+    state: present
+    insertafter: "^#PermitRootLogin"
+    line: "AllowGroups {{ os_common_ssh_group }}"
+  notify: Restart SSH
+
+- name: Change servers hostname
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+    use: systemd
+
+- name: "Add name resolution in /etc/hosts"
+  ansible.builtin.lineinfile:
+    dest: /etc/hosts
+    regexp: ".*{{ item }}$"
+    line: "{{ hostvars[item].ansible_host }}    {{ item }}"
+    state: present
+  when: hostvars[item].ansible_host is defined
+  with_items: "{{ groups['all'] }}"
+
+- name: System | Disable password authentication
+  ansible.builtin.lineinfile:
+    path: "/etc/sudoers"
+    state: present
+    regexp: "^%sudo"
+    line: "%sudo ALL=(ALL) NOPASSWD: ALL"
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Tools | Create ~/.vim/autoload
+  ansible.builtin.file:
+    state: directory
+    path: "~/.vim/autoload"
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Tools | Download plug.vim
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+    dest: ~/.vim/autoload/plug.vim
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Tools | Download .vimrc
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/Grafikart/dotfiles/master/config/vim/.vimrc
+    dest: ~/.vimrc
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Tools | Fish config directory
+  ansible.builtin.file:
+    path: ~/.config/fish
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Tools | Fish config
+  ansible.builtin.template:
+    src: config.fish
+    dest: ~/.config/fish/config.fish
+    owner: "{{ ansible_user }}"
+    mode: "0755"
+
+- name: Tools | Set user shell
+  ansible.builtin.user:
+    name: "{{ ansible_user }}"
+    shell: /usr/bin/fish
+
+- name: Tools | Download Fisher
+  ansible.builtin.get_url:
+    url: https://raw.githubusercontent.com/jorgebucaran/fisher/main/functions/fisher.fish
+    dest: /tmp/fisher.fish
+    mode: "0644"
+
+- name: Tools | Install Fisher and plugins
+  ansible.builtin.shell: |
+    set -o pipefail
+    source /tmp/fisher.fish
+    fisher install jorgebucaran/fisher
+    fisher install rafaelrinaldi/pure
+  args:
+    executable: /usr/bin/fish
+    creates: ~/.config/fish/functions/fisher.fish
+  become: true
+  become_user: "{{ ansible_user }}"
+
+- name: Tools | Systemd user directory
+  ansible.builtin.file:
+    path: ~/.config/systemd/user
+    state: directory
+    owner: "{{ ansible_user }}"
+    mode: "0755"
