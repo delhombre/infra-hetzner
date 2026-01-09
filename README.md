@@ -28,8 +28,8 @@ Infrastructure as Code for centralized management of K3s clusters on Hetzner Clo
 
 ## 🚦 Prerequisites
 
-- Ansible >= 2.14
-- kubectl >= 1.28
+- Ansible >= 2.20.1
+- kubectl >= 1.34
 - Hetzner Cloud account with API token
 
 ## 🏃 Quick Start
