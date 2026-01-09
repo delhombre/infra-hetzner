@@ -16,3 +16,7 @@
     - name: "Docker install"
       ansible.builtin.include_role:
         name: docker_install
+
+    - name: "K3s install"
+      ansible.builtin.include_role:
+        name: k3s_install
