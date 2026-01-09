@@ -1,0 +1,10 @@
+---
+- name: "All servers"
+  hosts: all
+  become: true
+  vars_files:
+    - vars/main.yaml
+  tasks:
+    - name: "Common OS tasks"
+      ansible.builtin.include_role:
+        name: os_common
