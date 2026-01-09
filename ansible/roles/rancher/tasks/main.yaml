@@ -1,0 +1,84 @@
+---
+- name: Install Helm
+  ansible.builtin.shell: |
+    set -o pipefail
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  args:
+    creates: /usr/local/bin/helm
+
+- name: Add Rancher Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: rancher_helm_repo_add
+  changed_when: "'has been added' in rancher_helm_repo_add.stdout"
+  failed_when: false
+
+- name: Update Helm repositories
+  ansible.builtin.command:
+    cmd: helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+
+- name: Create cattle-system namespace
+  ansible.builtin.command:
+    cmd: kubectl create namespace {{ rancher_namespace }}
+  register: rancher_ns_create
+  changed_when: rancher_ns_create.rc == 0
+  failed_when: false
+
+- name: Check if Rancher is already installed
+  ansible.builtin.command:
+    cmd: helm status rancher -n {{ rancher_namespace }}
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: rancher_status
+  changed_when: false
+  failed_when: false
+
+- name: Generate bootstrap password if not provided
+  ansible.builtin.set_fact:
+    rancher_bootstrap_password: "{{ lookup('password', '/dev/null length=16 chars=ascii_letters,digits') }}"
+  when:
+    - rancher_status.rc != 0
+    - rancher_bootstrap_password | length == 0
+
+- name: Install Rancher via Helm
+  ansible.builtin.command:
+    cmd: >
+      helm install rancher rancher-stable/rancher
+      --namespace {{ rancher_namespace }}
+      --set hostname={{ rancher_hostname }}
+      --set replicas={{ rancher_replicas }}
+      --set bootstrapPassword={{ rancher_bootstrap_password }}
+      --set ingress.tls.source=letsEncrypt
+      --set letsEncrypt.email={{ cert_manager_email }}
+      --set letsEncrypt.ingress.class=traefik
+      --version {{ rancher_version }}
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: rancher_status.rc != 0
+  register: rancher_install
+  changed_when: rancher_install.rc == 0
+
+- name: Wait for Rancher deployment to be ready
+  ansible.builtin.command:
+    cmd: kubectl rollout status deployment rancher -n {{ rancher_namespace }} --timeout=300s
+  when: rancher_status.rc != 0
+  changed_when: false
+
+- name: Display Rancher access information
+  ansible.builtin.debug:
+    msg: |
+      ========================================
+      Rancher is installed!
+
+      URL: https://{{ rancher_hostname }}
+      Bootstrap Password: {{ rancher_bootstrap_password }}
+
+      Add DNS record:
+      A  {{ rancher_hostname }}  ->  {{ ansible_host }}
+      ========================================
+  when: rancher_status.rc != 0

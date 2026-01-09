@@ -1,0 +1,6 @@
+---
+rancher_hostname: "rancher.example.com"
+rancher_version: "2.13.1"
+rancher_namespace: "cattle-system"
+rancher_replicas: 1
+rancher_bootstrap_password: "" # Will be auto-generated if empty
