@@ -19,3 +19,29 @@
     immediate: true
     offline: true
   loop: "{{ firewall_services }}"
+
+- name: Open K3s API port
+  ansible.posix.firewalld:
+    port: "{{ firewall_k3s_api_port }}"
+    state: enabled
+    permanent: true
+    immediate: true
+  when: firewall_k3s_enabled | default(false)
+
+- name: Add K3s pod network to trusted zone
+  ansible.posix.firewalld:
+    source: "{{ firewall_k3s_pod_cidr }}"
+    zone: trusted
+    state: enabled
+    permanent: true
+    immediate: true
+  when: firewall_k3s_enabled | default(false)
+
+- name: Add K3s service network to trusted zone
+  ansible.posix.firewalld:
+    source: "{{ firewall_k3s_service_cidr }}"
+    zone: trusted
+    state: enabled
+    permanent: true
+    immediate: true
+  when: firewall_k3s_enabled | default(false)
