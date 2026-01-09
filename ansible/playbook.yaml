@@ -8,3 +8,11 @@
     - name: "Common OS tasks"
       ansible.builtin.include_role:
         name: os_common
+
+    - name: "Firewall tasks"
+      ansible.builtin.include_role:
+        name: firewall
+
+    - name: "Docker install"
+      ansible.builtin.include_role:
+        name: docker_install
