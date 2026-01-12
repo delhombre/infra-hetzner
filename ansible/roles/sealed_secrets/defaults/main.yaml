@@ -1,0 +1,3 @@
+# Sealed Secrets default variables
+sealed_secrets_version: "v0.34.0"
+sealed_secrets_controller_url: "https://github.com/bitnami-labs/sealed-secrets/releases/download/{{ sealed_secrets_version }}/controller.yaml"
