@@ -33,3 +33,19 @@
     - name: "Rancher dashboard"
       ansible.builtin.include_role:
         name: rancher
+
+    - name: "MinIO object storage"
+      ansible.builtin.include_role:
+        name: minio
+
+    - name: "Prometheus metrics"
+      ansible.builtin.include_role:
+        name: prometheus
+
+    - name: "Grafana dashboards"
+      ansible.builtin.include_role:
+        name: grafana
+
+    - name: "Loki logs"
+      ansible.builtin.include_role:
+        name: loki
