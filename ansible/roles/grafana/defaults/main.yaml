@@ -1,0 +1,27 @@
+---
+# Grafana version to install (Helm chart version)
+grafana_chart_version: "8.8.2"
+
+# Grafana namespace (same as prometheus for easier service discovery)
+grafana_namespace: "monitoring"
+
+# Grafana admin credentials (override in vars/main.yaml or vault)
+grafana_admin_user: "admin"
+grafana_admin_password: "changeme"
+
+# Ingress settings
+grafana_ingress_enabled: true
+grafana_hostname: "grafana.example.com"
+grafana_ingress_class: "traefik"
+grafana_tls_enabled: true
+grafana_cluster_issuer: "letsencrypt-prod"
+
+# Persistent storage
+grafana_storage_enabled: true
+grafana_storage_size: "5Gi"
+
+# Prometheus data source URL (internal K8s service)
+grafana_prometheus_url: "http://prometheus-server.monitoring.svc.cluster.local:80"
+
+# Loki data source URL (gateway service)
+grafana_loki_url: "http://loki-gateway.monitoring.svc.cluster.local:80"
