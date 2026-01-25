@@ -1,0 +1,16 @@
+---
+# Prometheus version to install (Helm chart version)
+prometheus_chart_version: "28.6.0"
+
+# Prometheus namespace
+prometheus_namespace: "monitoring"
+
+# Enable persistent storage
+prometheus_storage_enabled: true
+prometheus_storage_size: "10Gi"
+
+# Retention period for metrics
+prometheus_retention: "15d"
+
+# Service scrape interval
+prometheus_scrape_interval: "30s"

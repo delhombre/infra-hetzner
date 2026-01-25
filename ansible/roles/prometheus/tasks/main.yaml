@@ -1,0 +1,102 @@
+---
+- name: Create monitoring namespace
+  ansible.builtin.shell:
+    cmd: set -o pipefail && kubectl create namespace {{ prometheus_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: prometheus_ns_result
+  changed_when: "'created' in prometheus_ns_result.stdout"
+
+- name: Add Prometheus Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: prometheus_helm_repo_add
+  changed_when: "'has been added' in prometheus_helm_repo_add.stdout"
+  failed_when: false
+
+- name: Update Helm repositories
+  ansible.builtin.command:
+    cmd: helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+
+- name: Check if Prometheus is already installed
+  ansible.builtin.command:
+    cmd: helm status prometheus -n {{ prometheus_namespace }}
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: prometheus_status
+  failed_when: false
+  changed_when: false
+
+- name: Get current Prometheus chart version
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      helm list -n {{ prometheus_namespace }} -o json | grep -o '"chart":"prometheus-[^"]*"' | sed 's/.*prometheus-//' | sed 's/"//' || echo "none"
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: prometheus_current_version
+  changed_when: false
+  when: prometheus_status.rc == 0
+
+- name: Create temp directory for Helm values
+  ansible.builtin.tempfile:
+    state: directory
+  register: prometheus_temp_dir
+  changed_when: false
+
+- name: Template Prometheus Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ prometheus_temp_dir.path }}/values.yaml"
+    mode: "0644"
+  changed_when: false
+
+- name: Install Prometheus via Helm
+  ansible.builtin.command:
+    cmd: >
+      helm upgrade --install prometheus prometheus-community/prometheus
+      --namespace {{ prometheus_namespace }}
+      --version {{ prometheus_chart_version }}
+      --values {{ prometheus_temp_dir.path }}/values.yaml
+      --wait --timeout 5m
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: prometheus_status.rc != 0
+  register: prometheus_install_result
+  changed_when: true
+
+- name: Upgrade Prometheus via Helm (if version changed)
+  ansible.builtin.command:
+    cmd: >
+      helm upgrade prometheus prometheus-community/prometheus
+      --namespace {{ prometheus_namespace }}
+      --version {{ prometheus_chart_version }}
+      --values {{ prometheus_temp_dir.path }}/values.yaml
+      --wait --timeout 5m
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when:
+    - prometheus_status.rc == 0
+    - prometheus_current_version.stdout | default('none') != prometheus_chart_version
+  register: prometheus_upgrade_result
+  changed_when: true
+
+- name: Cleanup temp directory
+  ansible.builtin.file:
+    path: "{{ prometheus_temp_dir.path }}"
+    state: absent
+  changed_when: false
+
+- name: Wait for Prometheus server to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Available deployment/prometheus-server -n {{ prometheus_namespace }} --timeout=180s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false

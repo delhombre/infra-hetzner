@@ -1,0 +1,41 @@
+# Prometheus Helm values
+server:
+  retention: "{{ prometheus_retention }}"
+  global:
+    scrape_interval: {{ prometheus_scrape_interval }}
+  
+  persistentVolume:
+    enabled: {{ prometheus_storage_enabled | lower }}
+    size: {{ prometheus_storage_size }}
+  
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
+# Disable components we don't need (Grafana handles alerting UI)
+alertmanager:
+  enabled: true
+  persistentVolume:
+    enabled: true
+    size: 2Gi
+
+# Enable kube-state-metrics for K8s metrics
+kube-state-metrics:
+  enabled: true
+
+# Enable node-exporter for node metrics
+prometheus-node-exporter:
+  enabled: true
+
+# Pushgateway for batch jobs
+prometheus-pushgateway:
+  enabled: false
+
+# Server ingress (optional, usually accessed via Grafana)
+server:
+  ingress:
+    enabled: false
