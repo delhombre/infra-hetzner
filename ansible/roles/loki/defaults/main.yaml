@@ -1,0 +1,20 @@
+---
+# Loki version to install (Helm chart version)
+loki_chart_version: "6.51.0"
+
+# Loki namespace
+loki_namespace: "monitoring"
+
+# Storage configuration
+loki_storage_enabled: true
+loki_storage_size: "10Gi"
+
+# Retention period for logs
+loki_retention_period: "168h" # 7 days
+
+# Enable Promtail for log collection
+loki_promtail_enabled: true
+
+# MinIO credentials (same as centralized MinIO)
+loki_minio_access_key: "{{ vault_minio_root_user | default('minio') }}"
+loki_minio_secret_key: "{{ vault_minio_root_password }}"

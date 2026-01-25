@@ -1,0 +1,116 @@
+---
+- name: Ensure monitoring namespace exists
+  ansible.builtin.shell:
+    cmd: set -o pipefail && kubectl create namespace {{ loki_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: loki_ns_result
+  changed_when: "'created' in loki_ns_result.stdout"
+
+- name: Add Grafana Helm repository
+  ansible.builtin.command:
+    cmd: helm repo add grafana https://grafana.github.io/helm-charts
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: loki_helm_repo_add
+  changed_when: "'has been added' in loki_helm_repo_add.stdout"
+  failed_when: false
+
+- name: Update Helm repositories
+  ansible.builtin.command:
+    cmd: helm repo update
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+
+- name: Check if Loki is already installed
+  ansible.builtin.command:
+    cmd: helm status loki -n {{ loki_namespace }}
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: loki_status
+  failed_when: false
+  changed_when: false
+
+- name: Get current Loki chart version
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      helm list -n {{ loki_namespace }} -o json | grep -o '"chart":"loki-[^"]*"' | sed 's/.*loki-//' | sed 's/"//' || echo "none"
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: loki_current_version
+  changed_when: false
+  when: loki_status.rc == 0
+
+- name: Create temp directory for Helm values
+  ansible.builtin.tempfile:
+    state: directory
+  register: loki_temp_dir
+  changed_when: false
+
+- name: Template Loki Helm values
+  ansible.builtin.template:
+    src: values.yaml.j2
+    dest: "{{ loki_temp_dir.path }}/values.yaml"
+    mode: "0644"
+  changed_when: false
+
+- name: Install Loki via Helm
+  ansible.builtin.command:
+    cmd: >
+      helm upgrade --install loki grafana/loki
+      --namespace {{ loki_namespace }}
+      --version {{ loki_chart_version }}
+      --values {{ loki_temp_dir.path }}/values.yaml
+      --wait --timeout 5m
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: loki_status.rc != 0
+  register: loki_install_result
+  changed_when: true
+
+- name: Upgrade Loki via Helm (if version changed)
+  ansible.builtin.command:
+    cmd: >
+      helm upgrade loki grafana/loki
+      --namespace {{ loki_namespace }}
+      --version {{ loki_chart_version }}
+      --values {{ loki_temp_dir.path }}/values.yaml
+      --wait --timeout 5m
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when:
+    - loki_status.rc == 0
+    - loki_current_version.stdout | default('none') != loki_chart_version
+  register: loki_upgrade_result
+  changed_when: true
+
+- name: Cleanup temp directory
+  ansible.builtin.file:
+    path: "{{ loki_temp_dir.path }}"
+    state: absent
+  changed_when: false
+
+- name: Wait for Loki to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=loki -n {{ loki_namespace }} --timeout=180s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+  failed_when: false
+
+- name: Display Loki status
+  ansible.builtin.debug:
+    msg: |
+      ✅ Loki deployed successfully!
+
+      📋 Log collection: Promtail DaemonSet collecting logs from all nodes
+      🔍 View logs: Grafana → Explore → Select "Loki" data source
+
+      📊 Example LogQL queries:
+        - All logs: {namespace="default"}
+        - Error logs: {namespace="default"} |= "error"
+        - App logs: {app="www"}
