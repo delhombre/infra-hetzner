@@ -1,0 +1,149 @@
+---
+- name: Create MinIO namespace
+  ansible.builtin.shell:
+    cmd: set -o pipefail && kubectl create namespace {{ minio_namespace }} --dry-run=client -o yaml | kubectl apply -f -
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: minio_ns_result
+  changed_when: "'created' in minio_ns_result.stdout or 'configured' in minio_ns_result.stdout"
+
+- name: Create temp directory for manifests
+  ansible.builtin.tempfile:
+    state: directory
+  register: minio_temp_dir
+  changed_when: false
+
+- name: Template PVC
+  ansible.builtin.template:
+    src: pvc.yaml.j2
+    dest: "{{ minio_temp_dir.path }}/pvc.yaml"
+    mode: "0644"
+  changed_when: false
+
+- name: Template Deployment
+  ansible.builtin.template:
+    src: deployment.yaml.j2
+    dest: "{{ minio_temp_dir.path }}/deployment.yaml"
+    mode: "0644"
+  changed_when: false
+
+- name: Template Service
+  ansible.builtin.template:
+    src: service.yaml.j2
+    dest: "{{ minio_temp_dir.path }}/service.yaml"
+    mode: "0644"
+  changed_when: false
+
+- name: Template Ingress API
+  ansible.builtin.template:
+    src: ingress-api.yaml.j2
+    dest: "{{ minio_temp_dir.path }}/ingress-api.yaml"
+    mode: "0644"
+  changed_when: false
+
+- name: Template Ingress Console
+  ansible.builtin.template:
+    src: ingress-console.yaml.j2
+    dest: "{{ minio_temp_dir.path }}/ingress-console.yaml"
+    mode: "0644"
+  changed_when: false
+
+- name: Create MinIO Secret
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl create secret generic minio-root \
+        --namespace {{ minio_namespace }} \
+        --from-literal=MINIO_ROOT_USER="{{ minio_root_user }}" \
+        --from-literal=MINIO_ROOT_PASSWORD="{{ minio_root_password }}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: minio_secret_result
+  changed_when: "'created' in minio_secret_result.stdout"
+  no_log: true
+
+- name: Apply MinIO manifests
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl apply -f {{ minio_temp_dir.path }}/ 2>&1
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: minio_apply_result
+  changed_when: "'created' in minio_apply_result.stdout or 'configured' in minio_apply_result.stdout"
+
+- name: Wait for MinIO to be ready
+  ansible.builtin.command:
+    cmd: kubectl wait --for=condition=Available deployment/minio -n {{ minio_namespace }} --timeout=180s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+
+- name: Check existing buckets
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl run minio-list-buckets-{{ ansible_date_time.epoch }} \
+        --namespace {{ minio_namespace }} \
+        --image={{ minio_mc_image }} \
+        --restart=Never \
+        --rm \
+        --attach \
+        --command -- sh -c "
+          mc alias set minio http://minio:9000 '{{ minio_root_user }}' '{{ minio_root_password }}' >/dev/null 2>&1 &&
+          mc ls minio --json 2>/dev/null | grep -o '\"key\":\"[^\"]*\"' | sed 's/\"key\":\"//;s/\"//' || true
+        " 2>/dev/null || true
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: minio_existing_buckets
+  changed_when: false
+  failed_when: false
+  no_log: true
+
+- name: Create buckets if not exist
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl run minio-create-bucket-{{ item.name }}-{{ ansible_date_time.epoch }} \
+        --namespace {{ minio_namespace }} \
+        --image={{ minio_mc_image }} \
+        --restart=Never \
+        --rm \
+        --attach \
+        --command -- sh -c "
+          mc alias set minio http://minio:9000 '{{ minio_root_user }}' '{{ minio_root_password }}' &&
+          mc mb --ignore-existing minio/{{ item.name }}{% if item.public %} && mc anonymous set download minio/{{ item.name }}{% endif %}
+        "
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  loop: "{{ minio_buckets }}"
+  when: item.name not in (minio_existing_buckets.stdout | default(''))
+  changed_when: true
+  failed_when: false
+  no_log: true
+
+- name: Cleanup temp directory
+  ansible.builtin.file:
+    path: "{{ minio_temp_dir.path }}"
+    state: absent
+  changed_when: false
+
+- name: Display MinIO access information
+  ansible.builtin.debug:
+    msg: |
+      ✅ MinIO deployed successfully!
+
+      🌐 API: https://{{ minio_hostname }}
+      🖥️  Console: https://{{ minio_console_hostname }}
+      👤 User: {{ minio_root_user }}
+
+      📦 Buckets created:
+      {% for bucket in minio_buckets %}
+        - {{ bucket.name }}{% if bucket.public %} (public){% endif %}
+      {% endfor %}

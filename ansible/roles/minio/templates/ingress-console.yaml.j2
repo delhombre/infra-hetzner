@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-console
+  namespace: {{ minio_namespace }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ minio_cluster_issuer }}
+spec:
+  ingressClassName: {{ minio_ingress_class }}
+  tls:
+    - hosts:
+        - {{ minio_console_hostname }}
+      secretName: minio-console-tls
+  rules:
+    - host: {{ minio_console_hostname }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9001

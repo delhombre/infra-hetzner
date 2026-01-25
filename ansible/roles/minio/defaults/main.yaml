@@ -1,0 +1,29 @@
+---
+# MinIO version
+minio_image: "minio/minio:latest"
+minio_mc_image: "minio/mc:latest"
+
+# Namespace
+minio_namespace: "minio"
+
+# Storage
+minio_storage_size: "20Gi"
+
+# Ingress
+minio_hostname: "minio.example.com"
+minio_console_hostname: "console.minio.example.com"
+minio_ingress_class: "traefik"
+minio_cluster_issuer: "letsencrypt-prod"
+
+# Credentials (will be provided via vault)
+minio_root_user: "{{ vault_minio_root_user | default('minio') }}"
+minio_root_password: "{{ vault_minio_root_password }}"
+
+# Buckets to create
+minio_buckets:
+  - name: "turbo-cache"
+    public: false
+  - name: "payload-media"
+    public: true
+  - name: "loki-data"
+    public: false
