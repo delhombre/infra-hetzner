@@ -13,3 +13,7 @@ sealed_secrets_version: "v0.34.0"
 # Observability Stack
 grafana_hostname: "grafana.example.com"
 grafana_admin_password: "{{ vault_grafana_admin_password | default('changeme') }}"
+
+# MinIO
+minio_hostname: "minio.example.com"
+minio_console_hostname: "console.minio.example.com"
