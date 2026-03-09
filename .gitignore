@@ -1,1 +1,6 @@
 .ansible
+
+# Sensitive files - use *.example as templates
+ansible/inventory.ini
+ansible/vault.txt
+ansible/vars/main.yaml

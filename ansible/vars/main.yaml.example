@@ -1,0 +1,15 @@
+---
+# GLOBAL VARS
+main_user: "{{ ansible_user }}"
+http_port: "80"
+https_port: "443"
+timezone: "Europe/Brussels"
+locale: "fr_BE.UTF-8"
+firewall_k3s_enabled: true
+cert_manager_email: "your-email@example.com"
+rancher_hostname: "rancher.example.com"
+sealed_secrets_version: "v0.34.0"
+
+# Observability Stack
+grafana_hostname: "grafana.example.com"
+grafana_admin_password: "{{ vault_grafana_admin_password | default('changeme') }}"

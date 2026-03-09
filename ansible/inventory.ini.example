@@ -1,0 +1,4 @@
+srv01 ansible_host=YOUR_SERVER_IP ansible_user=YOUR_USER ansible_python_interpreter=/usr/bin/python3
+
+[debian]
+srv01
